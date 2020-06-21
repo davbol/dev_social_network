@@ -1,19 +1,34 @@
 import os
+import environ
+import google.auth
+from google.cloud import secretmanager_v1beta1 as sm
 
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+# Import settings with django-environ
+env = environ.Env()
+# Import settings from Secret Manager
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+env_file = os.path.join(BASE_DIR,  ".env")
+if not os.path.isfile('.env'):
+    import google.auth
+    from google.cloud import secretmanager_v1beta1 as sm
+    _, project = google.auth.default()
+    if project:
+        client = sm.SecretManagerServiceClient()
+        path = client.secret_version_path(project, "django_settings", "latest")
+        payload = client.access_secret_version(path).payload.data.decode("UTF-8")
+        with open(env_file, "w") as f:
+            f.write(payload)
+env = environ.Env()
+env.read_env(env_file)
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '*sb(vdhrc#cy=06cr8ed99zh5sj@v*s#!$d!y_jxq)!n9z)w-f'
+SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 # AUTH_USER_MODEL = 'accounts.User'
 
@@ -76,14 +91,7 @@ WSGI_APPLICATION = 'dev_social_network.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
-}
-
+DATABASES = {"default": env.db()}
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
@@ -125,14 +133,9 @@ LOGIN_URL = '/dev/accounts/login'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
+# Define static storage via django-storages[google]
+GS_BUCKET_NAME = env("GS_BUCKET_STATIC", None)
 
-STATIC_ENV_ROOT = os.path.join(os.path.dirname(BASE_DIR), 'static_env')
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static')
-]
-
-STATIC_ROOT = os.path.join(STATIC_ENV_ROOT, 'static')
-MEDIA_ROOT = os.path.join(STATIC_ENV_ROOT, 'media')
-
-STATIC_URL = '/static/'
-MEDIA_URL = '/media/'
+DEFAULT_FILE_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
+STATICFILES_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
+GS_DEFAULT_ACL = "publicRead"
